@@ -1,0 +1,34 @@
+# Build artifacts
+.build/
+.swiftpm/
+dist/
+*.xcodeproj/
+DerivedData/
+
+# macOS clutter
+.DS_Store
+*.swp
+
+# Backups / snapshots
+*.bak
+*.bak.*
+archive/
+
+# Local user state — never share
+share/router/.local-config.json
+~/.mlxlm/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.iml
+
+# Python (in case the share/router is run in-place)
+__pycache__/
+*.pyc
+*.pyo
+venv/
+
+# Logs
+*.log
+logs/

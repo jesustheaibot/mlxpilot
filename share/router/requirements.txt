@@ -1,0 +1,10 @@
+# MLX Pilot server pinned dependencies.
+#
+# mlx-vlm 0.4.4 has a regression in models/qwen3_vl/language.py that
+# crashes Qwen3-VL on text-only requests:
+#   TypeError: 'NoneType' object is not subscriptable
+# Tested working on 0.4.3 (text-only + image inputs both succeed).
+# DO NOT `pip install -U mlx-vlm` without re-verifying text-only VL.
+mlx-vlm==0.4.3
+
+# Other pins added as needed. Unpinned packages follow pip's resolver.

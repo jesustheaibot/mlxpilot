@@ -1,0 +1,68 @@
+{
+  "version": 6,
+  "control": {
+    "models_dir": "__HOME__/.mlxlm/models",
+    "default_model": "Qwen3.6-35B-A3B-4bit",
+    "logs_dir": "__HOME__/.mlxlm/logs",
+    "venv_python": "__HOME__/.mlxlm/venv/bin/python",
+    "auto_start_models": [],
+    "log_retention_days": 7,
+    "conversation_retention_days": 60,
+    "archived_retention_days": 14,
+    "prune_empty_new_chats_after_hours": 24,
+    "keep_alive_models": []
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000
+  },
+  "memory": {
+    "enabled": true,
+    "auto_extract": true,
+    "max_tokens_injected": 5000,
+    "default_retention_days": 90,
+    "max_entries": 500,
+    "max_entries_per_turn": 3,
+    "min_seconds_between_extractions": 4
+  },
+  "models": {
+    "Qwen3.6-35B-A3B-4bit": {
+      "engine": "mlx_vlm",
+      "port": 8001,
+      "max_context_tokens": 96000,
+      "kv_bits": 4,
+      "kv_quant_scheme": "turboquant",
+      "trust_remote_code": false,
+      "modalities": ["text", "image", "video"],
+      "tool_calling": true,
+      "request_defaults": {
+        "max_tokens": 32768,
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 0,
+        "min_p": 0.0,
+        "repetition_penalty": 1.0,
+        "presence_penalty": 0.0
+      },
+      "notes": "Primary daily driver. MoE 256 experts, 8 active. Thinking ON by default; disable per-request via chat_template_kwargs.enable_thinking=false."
+    },
+    "Qwen3.6-27B-8bit": {
+      "engine": "mlx_vlm",
+      "port": 8003,
+      "max_context_tokens": 96000,
+      "kv_bits": 4,
+      "kv_quant_scheme": "turboquant",
+      "trust_remote_code": false,
+      "modalities": ["text", "image", "video"],
+      "tool_calling": true,
+      "request_defaults": {
+        "max_tokens": 8192,
+        "temperature": 0.7,
+        "top_p": 0.8,
+        "top_k": 20,
+        "repetition_penalty": 1.05
+      },
+      "notes": "Slow deep coder/thinker. Dense 27B 8-bit. Tight sampling for code/repo reasoning. Hot-swap via 'deep'/'qwen27'/'thinker27' alias."
+    }
+  }
+}

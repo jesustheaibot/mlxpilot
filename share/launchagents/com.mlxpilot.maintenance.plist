@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mlxpilot.maintenance</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/.mlxlm/venv/bin/python</string>
+        <string>__HOME__/.mlxlm/maintenance.py</string>
+        <string>--apply</string>
+        <string>--quiet</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>3</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/.mlxlm/logs/maintenance.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.mlxlm/logs/maintenance.stdout.log</string>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>Nice</key>
+    <integer>10</integer>
+</dict>
+</plist>
