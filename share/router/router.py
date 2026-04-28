@@ -13,6 +13,7 @@ and the client didn't send a system message, the router prepends one.
 import asyncio
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -280,6 +281,25 @@ def _launch_args(model_name: str):
 
 
 def _port_listening(port: int, timeout: float = 2.0) -> bool:
+    """Raw TCP probe: is anything bound to this port?
+
+    Deliberately does NOT use /health. mlx_vlm.server runs single-threaded
+    uvicorn, so /health blocks behind in-flight inference and times out
+    under normal load. The question this function answers is 'do not
+    launch a duplicate' — for that, port-bound is the correct signal.
+    The slower /health-200 check is reserved for _wait_for_health, which
+    runs once after spawning a new backend.
+    """
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def _port_health_ok(port: int, timeout: float = 5.0) -> bool:
+    """Stricter HTTP /health probe. Used only by _wait_for_health when
+    we just spawned a backend and need to know it's actually serving."""
     try:
         r = httpx.get(f"http://127.0.0.1:{port}/health", timeout=timeout)
         return r.status_code == 200
@@ -314,9 +334,13 @@ def _kill_port(port: int):
 
 
 async def _wait_for_health(port: int, timeout: float = 120.0) -> bool:
+    """After spawning a backend, wait until it actually answers HTTP.
+    Uses _port_health_ok rather than _port_listening because we want a
+    real "the app is serving" signal here, not just "TCP bound."
+    """
     start = time.time()
     while time.time() - start < timeout:
-        if _port_listening(port, timeout=1.0):
+        if _port_health_ok(port, timeout=2.0):
             return True
         await asyncio.sleep(1.0)
     return False
