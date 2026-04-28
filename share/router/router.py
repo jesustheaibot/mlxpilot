@@ -273,13 +273,13 @@ async def _wait_for_health(port: int, timeout: float = 120.0) -> bool:
 async def ensure_loaded(model_name: str):
     """Ensure `model_name` is listening on its configured port.
 
-    Two-resident mode (2026-04-26): does NOT touch other model ports.
-    If the requested model's port is already listening → fast path.
-    Otherwise → launch the requested model under the load lock and
-    wait for /health. Other model backends are left alone.
-
-    Eviction is intentionally removed: the user runs both 35B and 27B
-    simultaneously. Routing must never stop the other model.
+    Polite eviction (2026-04-27): never both resident. When a different
+    model is requested and another is currently up, drain its in-flight
+    refcount to zero (preserving the "never kill mid-stream" guarantee
+    that motivated the 2026-04-26 two-resident change), then evict it
+    before launching the new one. If the other backend doesn't drain
+    within the window, evict anyway — a hung backend would otherwise
+    deadlock the swap-cliff fix this whole change exists for.
     """
     port = CONFIG["models"][model_name]["port"]
 
@@ -291,6 +291,25 @@ async def ensure_loaded(model_name: str):
         # Re-check after lock acquisition.
         if _port_listening(port, timeout=2.0):
             return
+
+        # Polite eviction of any other resident backend.
+        for other_name, other_cfg in CONFIG["models"].items():
+            if other_name == model_name:
+                continue
+            other_port = other_cfg["port"]
+            if not _port_listening(other_port, timeout=1.0):
+                continue
+            print(
+                f"[router] evicting {other_name} (:{other_port}) to make room for {model_name}",
+                flush=True,
+            )
+            drained = await _wait_until_idle(other_name, timeout=600.0)
+            if not drained:
+                print(
+                    f"[router] WARN: {other_name} did not drain within 600s — evicting anyway",
+                    flush=True,
+                )
+            _kill_port(other_port)
 
         # Launch requested model.
         args = _launch_args(model_name)
