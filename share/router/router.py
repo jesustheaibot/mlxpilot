@@ -164,6 +164,16 @@ def resolve_model(requested: str):
 
 _LOAD_LOCK = asyncio.Lock()
 
+# Idle eviction threshold. A backend that has been resident for this many
+# seconds with zero traffic and zero in-flight requests gets killed by the
+# background sweeper to release weights + KV cache back to the OS.
+IDLE_EVICTION_SECONDS = 1800  # 30 minutes
+IDLE_SWEEP_INTERVAL = 60       # check every minute
+
+# Last-activity timestamp per model (monotonic). Updated on every forward
+# begin. Used by the idle sweeper.
+_LAST_ACTIVITY: dict[str, float] = {}
+
 # Active-forward refcount per model. A request increments this before
 # sending bytes to the backend and decrements after the full response
 # (non-stream) or the stream closes. ensure_loaded's eviction phase waits
@@ -179,14 +189,56 @@ _FORWARD_COND = asyncio.Condition()
 async def _begin_forward(name: str):
     async with _FORWARD_COND:
         _ACTIVE_FORWARDS[name] = _ACTIVE_FORWARDS.get(name, 0) + 1
+        _LAST_ACTIVITY[name] = time.monotonic()
 
 
 async def _end_forward(name: str):
     async with _FORWARD_COND:
         if _ACTIVE_FORWARDS.get(name, 0) > 0:
             _ACTIVE_FORWARDS[name] -= 1
+        _LAST_ACTIVITY[name] = time.monotonic()
         if _ACTIVE_FORWARDS.get(name, 0) == 0:
             _FORWARD_COND.notify_all()
+
+
+async def _idle_sweeper():
+    """Background task: every IDLE_SWEEP_INTERVAL seconds, check each
+    listening backend. If it has been idle longer than IDLE_EVICTION_SECONDS
+    and has zero in-flight forwards, kill it. Releases weights + KV cache
+    back to the OS so the machine isn't holding ~17-27 GB for nothing.
+    """
+    while True:
+        try:
+            await asyncio.sleep(IDLE_SWEEP_INTERVAL)
+            now = time.monotonic()
+            for name, cfg in CONFIG.get("models", {}).items():
+                port = cfg.get("port")
+                if not port or not _port_listening(port, timeout=1.0):
+                    continue
+                last = _LAST_ACTIVITY.get(name)
+                if last is None:
+                    # Backend is up but we've never tracked activity for it
+                    # (e.g., started outside this router process, or no
+                    # traffic since startup). Seed with now so we don't
+                    # evict on the next pass without giving it a chance.
+                    _LAST_ACTIVITY[name] = now
+                    continue
+                idle_for = now - last
+                if idle_for < IDLE_EVICTION_SECONDS:
+                    continue
+                if _ACTIVE_FORWARDS.get(name, 0) > 0:
+                    continue
+                print(
+                    f"[router] idle eviction: {name} (:{port}) idle for "
+                    f"{int(idle_for)}s, killing",
+                    flush=True,
+                )
+                _kill_port(port)
+                _LAST_ACTIVITY.pop(name, None)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[router] idle sweeper error: {e}", flush=True)
 
 
 async def _wait_until_idle(name: str, timeout: float = 30.0):
@@ -464,6 +516,7 @@ def _rehydrate_usage() -> None:
 @app.on_event("startup")
 async def _startup():
     _rehydrate_usage()
+    asyncio.create_task(_idle_sweeper())
 
 
 @app.get("/health")
