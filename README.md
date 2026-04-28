@@ -2,6 +2,8 @@
 
 > **Low-friction MLX VLM server. MLX Pilot puts you in the driver's seat to control your own locals.**
 
+_Last updated: 2026-04-27 · v1.1 (polite-eviction routing + idle sweeper)._
+
 Apple Silicon native, no Electron, no cloud, no API keys. One Swift file (the GUI), one Python file (the router), one config. Cross-conversation memory built in.
 
 The one network call this app makes is to DuckDuckGo's HTML endpoint when you use `/search` — and even that only fetches text the *user* asks for, so your local model can read it.
